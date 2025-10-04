@@ -1,7 +1,11 @@
 [package]
-name = "linux-ipc"
+name = "linux-interprocess"
 version = "0.1.0"
+authors = [ "Szabó Boldizsár Márk <szaboboldizsarmark@gmail.com>" ]
 edition = "2024"
+description = "Crate for Linux IPC, currently only supports mutexes"
+license = "MIT"
+repository = "https://github.com/szaboboldizsarmark/linux-interprocess"
 
 [dependencies]
 nix = { version = "*", features = ["fs", "mman", "pthread"] }
