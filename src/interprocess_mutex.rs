@@ -1,5 +1,4 @@
 use std::{
-    error::Error,
     ffi::c_void,
     mem::{size_of, zeroed},
     num::NonZeroUsize,
@@ -9,6 +8,7 @@ use std::{
     },
 };
 
+use anyhow::{Result, anyhow};
 use nix::{
     errno::Errno,
     fcntl::{Flock, FlockArg, OFlag, open},
@@ -39,7 +39,7 @@ pub struct InterprocessMutex {
 }
 
 impl InterprocessMutex {
-    pub fn new(name: &str) -> Result<Self, Box<dyn Error>> {
+    pub fn new(name: &str) -> Result<Self> {
         let path = format!("/dev/shm/{}.mtx", name);
         let fd = open(
             path.as_str(),
@@ -53,7 +53,7 @@ impl InterprocessMutex {
         let dup_fd = unsafe { OwnedFd::from_raw_fd(dup_raw_fd) };
 
         let init_lock = Flock::lock(dup_fd, FlockArg::LockExclusive)
-            .map_err(|(_, e)| format!("init-lock failed: {}", e))?;
+            .map_err(|(_, e)| anyhow!("init-lock failed: {}", e))?;
 
         let len = NonZeroUsize::new(size_of::<pthread_mutex_t>())
             .expect("pthread_mutex_t has nonzero size");
@@ -87,7 +87,7 @@ impl InterprocessMutex {
 
         init_lock
             .unlock()
-            .map_err(|(_, e)| format!("init-unlock failed: {}", e))?;
+            .map_err(|(_, e)| anyhow!("init-unlock failed: {}", e))?;
 
         Ok(Self {
             _fd: fd,
@@ -95,15 +95,18 @@ impl InterprocessMutex {
         })
     }
 
-    pub fn lock(&self) -> Result<LockResult, Errno> {
+    pub fn lock(&self) -> Result<LockResult> {
         let err = unsafe { pthread_mutex_lock(self.ptr) };
         if err == EOWNERDEAD {
             unsafe {
-                Errno::result(pthread_mutex_consistent(self.ptr))?;
+                Errno::result(pthread_mutex_consistent(self.ptr))
+                    .map_err(|e| anyhow!("pthread_mutex_consistent failed: {e}"))?;
             }
             Ok(LockResult::OwnerDiedRecovered)
         } else {
-            Errno::result(err).map(|_| LockResult::Acquired)
+            Errno::result(err)
+                .map(|_| LockResult::Acquired)
+                .map_err(|e| anyhow!("pthread_mutex_lock failed: {e}"))
         }
     }
 
