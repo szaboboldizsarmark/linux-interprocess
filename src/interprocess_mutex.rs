@@ -26,6 +26,7 @@ use nix::{
 };
 
 /// The result of locking an interprocess mutex.
+#[derive(Debug, Clone)]
 pub enum LockResult {
     /// Mutex acquired normally without prior owner death.
     Acquired,
